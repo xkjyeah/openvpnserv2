@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using System.IO;
 using System.Diagnostics;
 using System.Threading;
+using System.ServiceProcess;
 
 namespace OpenVpn
 {
@@ -19,6 +20,7 @@ namespace OpenVpn
             this.ServiceName = "OpenVpnService";
             this.CanStop = true;
             this.CanPauseAndContinue = false;
+            this.CanHandlePowerEvent = true;
             this.AutoLog = true;
 
             this.Subprocesses = new List<OpenVpnChild>();
@@ -30,15 +32,40 @@ namespace OpenVpn
 
         protected override void OnStop()
         {
+            RequestAdditionalTime(3000);
             foreach (var child in Subprocesses)
             {
                 child.StopProcess();
             }
-            
-            foreach (var child in Subprocesses)
+        }
+
+        protected override bool OnPowerEvent(PowerBroadcastStatus powerStatus)
+        {
+            if (powerStatus == PowerBroadcastStatus.Suspend)
             {
-                child.Wait();
+                //EventLog.WriteEntry("Computer going to sleep");
+                foreach (var child in Subprocesses)
+                {
+                    child.StopProcess();
+                }
             }
+            else if (powerStatus.HasFlag(PowerBroadcastStatus.ResumeCritical))
+            {
+                //EventLog.WriteEntry("Resume from critical");
+                foreach (var child in Subprocesses)
+                {
+                    child.Restart();
+                }
+            }
+            else if (powerStatus.HasFlag(PowerBroadcastStatus.ResumeSuspend))
+            {
+                //EventLog.WriteEntry("Resume from suspend");
+                foreach (var child in Subprocesses)
+                {
+                    child.Start();
+                }
+            }
+            return true;
         }
 
         protected override void OnStart(string[] args)
@@ -196,62 +223,96 @@ namespace OpenVpn
                 };
             flushTimer.Start();
             
-            ReinitProcess();
+            Start();
         }
         
         public void StopProcess() {
             if (restartTimer != null) {
                 restartTimer.Stop();
             }
-            if (!process.HasExited) {
-                process.EnableRaisingEvents = false;
-                process.CloseMainWindow();
-                
-                var stopTimer = new System.Timers.Timer(3000);
-                stopTimer.AutoReset = false;
-                stopTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs e) =>
-                    {
-                        process.Kill();
-                    };
-                stopTimer.Start();
+            try
+            {
+                if (!process.HasExited)
+                {
+                    process.Exited -= Watchdog; // Don't restart the process after kill
+                    process.Kill();
+                }
             }
+            catch (InvalidOperationException) { }
         }
         
         public void Wait() {
             process.WaitForExit();
             logFile.Close();
         }
+
+        public void Restart() {
+            if (restartTimer != null) {
+                restartTimer.Stop();
+            }
+            /* try-catch... because there could be a concurrency issue (write-after-read) here? */
+            if (!process.HasExited)
+            {
+                process.Exited -= Watchdog;
+                process.Exited += FastRestart; // Restart the process after kill
+                try
+                {
+                    process.Kill();
+                }
+                catch (InvalidOperationException)
+                {
+                    Start();
+                }
+            }
+            else
+            {
+                Start();
+            }
+        }
+
+        private void WriteToLog(object sendingProcess, DataReceivedEventArgs e) {
+            if (e != null)
+                logFile.WriteLine(e.Data);
+        }
+
+        /// Restart after 10 seconds
+        /// For use with unexpected terminations
+        private void Watchdog(object sender, EventArgs e)
+        {
+            config.eventLog.WriteEntry("Process for " + configFile + " exited. Restarting in 10 sec.");
+
+            restartTimer = new System.Timers.Timer(10000);
+            restartTimer.AutoReset = false;
+            restartTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs ev) =>
+                {
+                    Start();
+                };
+            restartTimer.Start();
+        }
+
+        /// Restart after 3 seconds
+        /// For use with Restart() (e.g. after a resume)
+        private void FastRestart(object sender, EventArgs e)
+        {
+            config.eventLog.WriteEntry("Process for " + configFile + " restarting in 3 sec");
+            restartTimer = new System.Timers.Timer(3000);
+            restartTimer.AutoReset = false;
+            restartTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs ev) =>
+                {
+                    Start();
+                };
+            restartTimer.Start();
+        }
         
-        private void ReinitProcess() {
+        public void Start() {
             process = new System.Diagnostics.Process();
 
             process.StartInfo = startInfo;
             process.EnableRaisingEvents = true;
 
-            process.OutputDataReceived += (object sendingProcess, DataReceivedEventArgs e) =>
-            {
-                if (e != null)
-                    logFile.WriteLine(e.Data);
-            };
-
-            process.ErrorDataReceived += (object sendingProcess, DataReceivedEventArgs e) =>
-            {
-                if (e != null)
-                    logFile.WriteLine(e.Data);
-            };
-
-            process.Exited += (object sender, EventArgs e) =>
-            {
-                config.eventLog.WriteEntry("Process for " + configFile + " exited. Restarting in 10 sec.");
-
-                restartTimer = new System.Timers.Timer(10000);
-                restartTimer.AutoReset = false;
-                restartTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs ev) =>
-                    {
-                        ReinitProcess();
-                    };
-                restartTimer.Start();
-            };
+            process.OutputDataReceived += WriteToLog;
+            process.ErrorDataReceived += WriteToLog;
+            process.Exited += Watchdog;
 
             process.Start();
             process.BeginErrorReadLine();
