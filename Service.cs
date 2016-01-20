@@ -6,6 +6,7 @@ using Microsoft.Win32;
 using System.IO;
 using System.Diagnostics;
 using System.Threading;
+using System.ServiceProcess;
 
 namespace OpenVpn
 {
@@ -19,6 +20,7 @@ namespace OpenVpn
             this.ServiceName = "OpenVpnService";
             this.CanStop = true;
             this.CanPauseAndContinue = false;
+            this.CanHandlePowerEvent = true;
             this.AutoLog = true;
 
             this.Subprocesses = new List<OpenVpnChild>();
@@ -30,15 +32,37 @@ namespace OpenVpn
 
         protected override void OnStop()
         {
+            RequestAdditionalTime(3000);
             foreach (var child in Subprocesses)
             {
                 child.StopProcess();
             }
-            
-            foreach (var child in Subprocesses)
+        }
+
+        protected override bool OnPowerEvent(PowerBroadcastStatus powerStatus)
+        {
+            if (powerStatus == PowerBroadcastStatus.Suspend)
             {
-                child.Wait();
+                foreach (var child in Subprocesses)
+                {
+                    child.StopProcess();
+                }
             }
+            else if (powerStatus.HasFlag(PowerBroadcastStatus.ResumeCritical))
+            {
+                foreach (var child in Subprocesses)
+                {
+                    child.Restart();
+                }
+            }
+            else if (powerStatus.HasFlag(PowerBroadcastStatus.ResumeSuspend))
+            {
+                foreach (var child in Subprocesses)
+                {
+                    child.Start();
+                }
+            }
+            return true;
         }
 
         protected override void OnStart(string[] args)
@@ -196,24 +220,17 @@ namespace OpenVpn
                 };
             flushTimer.Start();
             
-            ReinitProcess();
+            Start();
         }
         
         public void StopProcess() {
             if (restartTimer != null) {
                 restartTimer.Stop();
             }
+            
             if (!process.HasExited) {
                 process.EnableRaisingEvents = false;
-                process.CloseMainWindow();
-                
-                var stopTimer = new System.Timers.Timer(3000);
-                stopTimer.AutoReset = false;
-                stopTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs e) =>
-                    {
-                        process.Kill();
-                    };
-                stopTimer.Start();
+                process.Kill();
             }
         }
         
@@ -221,37 +238,58 @@ namespace OpenVpn
             process.WaitForExit();
             logFile.Close();
         }
+
+        public void Restart() {
+            if (restartTimer != null) {
+                restartTimer.Stop();
+            }
+            /* Let the watchdog handle it? */
+            process.Exited -= Watchdog;
+            process.Exited += FastRestart;
+            process.Kill();
+        }
+
+        private void WriteToLog(object sendingProcess, DataReceivedEventArgs e) {
+            if (e != null)
+                logFile.WriteLine(e.Data);
+        }
+
+        /// Restart after 10 seconds
+        /// For use with unexpected terminations
+        private void Watchdog(object sender, EventArgs e)
+        {
+            config.eventLog.WriteEntry("Process for " + configFile + " exited. Restarting in 10 sec.");
+
+            restartTimer = new System.Timers.Timer(10000);
+            restartTimer.AutoReset = false;
+            restartTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs ev) =>
+                {
+                    Start();
+                };
+            restartTimer.Start();
+        }
+
+        /// Restart after 3 seconds
+        /// For use with Restart() (e.g. after a resume)
+        private void FastRestart(object sender, EventArgs e) {
+            restartTimer = new System.Timers.Timer(3000);
+            restartTimer.AutoReset = false;
+            restartTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs ev) =>
+                {
+                    Start();
+                };
+            restartTimer.Start();
+        }
         
-        private void ReinitProcess() {
+        public void Start() {
             process = new System.Diagnostics.Process();
 
             process.StartInfo = startInfo;
             process.EnableRaisingEvents = true;
 
-            process.OutputDataReceived += (object sendingProcess, DataReceivedEventArgs e) =>
-            {
-                if (e != null)
-                    logFile.WriteLine(e.Data);
-            };
-
-            process.ErrorDataReceived += (object sendingProcess, DataReceivedEventArgs e) =>
-            {
-                if (e != null)
-                    logFile.WriteLine(e.Data);
-            };
-
-            process.Exited += (object sender, EventArgs e) =>
-            {
-                config.eventLog.WriteEntry("Process for " + configFile + " exited. Restarting in 10 sec.");
-
-                restartTimer = new System.Timers.Timer(10000);
-                restartTimer.AutoReset = false;
-                restartTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs ev) =>
-                    {
-                        ReinitProcess();
-                    };
-                restartTimer.Start();
-            };
+            process.OutputDataReceived += WriteToLog;
+            process.ErrorDataReceived += WriteToLog;
+            process.Exited += Watchdog;
 
             process.Start();
             process.BeginErrorReadLine();
