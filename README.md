@@ -12,3 +12,18 @@ Aim of this package is to fix:
 
 Pre-built binaries are included in `bin/`
 
+Building on Linux
+-----------------
+
+This package can be built under Linux.
+
+On Ubuntu 14.04, you need the following packages and their dependencies:
+
+- `mono-xbuild`
+- `libmono-microsoft-build-tasks-v4.0-4.0-cil`
+- `libmono-system-serviceprocess4.0-cil`
+- `libmono-system-management4.0-cil`
+
+A simple `xbuild /p:Configuration=Release /p:Platform=AnyCPU` should be
+sufficient to generate the binaries.
+
