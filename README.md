@@ -24,6 +24,5 @@ On Ubuntu 14.04, you need the following packages and their dependencies:
 - `libmono-system-serviceprocess4.0-cil`
 - `libmono-system-management4.0-cil`
 
-A simple `xbuild /p:Configuration=Release /p:Platform=AnyCPU OpenVPNService.sln` should be
-sufficient to generate the binaries.
+A simple `./build.sh` should be sufficient to generate the binaries.
 
