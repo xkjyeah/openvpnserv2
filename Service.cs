@@ -73,6 +73,7 @@ namespace OpenVpn
             RegistryKey rkHKLM = Registry.LocalMachine;
             List<RegistryKey> rkOvpns = new List<RegistryKey>();
 
+            EventLog.WriteEntry("Start (1)");
             try
             {
                 var key = rkHKLM.OpenSubKey("Software\\OpenVPN", false);
@@ -106,6 +107,8 @@ namespace OpenVpn
                         eventLog = EventLog,
                     };
 
+                    EventLog.WriteEntry("Start (2) Config dir: " + config.configDir);
+
                     /// Only attempt to start the service
                     /// if openvpn.exe is present. This should help if there are old files
                     /// and registry settings left behind from a previous OpenVPN 32-bit installation
@@ -118,10 +121,12 @@ namespace OpenVpn
 
                     foreach (string _filename in Directory.GetFiles(config.configDir))
                     {
+                        EventLog.WriteEntry("Start (3) Found file: " + _filename);
                         if (!_filename.EndsWith(config.configExt))
                         {
                             continue;
                         }
+                        EventLog.WriteEntry("Start (4) Processing config file: " + _filename);
 
                         var child = new OpenVpnChild(config, _filename);
                         Subprocesses.Add(child);
