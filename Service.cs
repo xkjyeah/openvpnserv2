@@ -20,7 +20,10 @@ namespace OpenVpn
             this.ServiceName = "OpenVpnService";
             this.CanStop = true;
             this.CanPauseAndContinue = false;
-            this.CanHandlePowerEvent = false; // N.B. if OpenVPN always dies when suspending, then this is unnecessary
+            // N.B. if OpenVPN always dies when suspending, then this is unnecessary
+            // However if there is some kind of stuck state where OpenVPN.exe hangs
+            // after resuming, then this will help
+            this.CanHandlePowerEvent = false; 
             this.AutoLog = true;
 
             this.Subprocesses = new List<OpenVpnChild>();
@@ -68,16 +71,29 @@ namespace OpenVpn
             return true;
         }
 
-        protected override void OnStart(string[] args)
+        private RegistryKey GetRegistrySubkey(RegistryView rView)
         {
-            RegistryKey rkHKLM = Registry.LocalMachine;
-            List<RegistryKey> rkOvpns = new List<RegistryKey>();
-
             try
             {
-                var key = rkHKLM.OpenSubKey("Software\\OpenVPN", false);
+                return RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, rView)
+                    .OpenSubKey("Software\\OpenVPN");
+            }
+            catch (ArgumentException)
+            {
+                return null;
+            }
+        }
+
+        protected override void OnStart(string[] args)
+        {
+            try
+            {
+                List<RegistryKey> rkOvpns = new List<RegistryKey>();
+                var key = GetRegistrySubkey(RegistryView.Registry64);
+                Console.WriteLine(key == null);
                 if (key != null) rkOvpns.Add(key);
-                key = rkHKLM.OpenSubKey("Software\\Wow6432Node\\OpenVPN", false);
+                key = GetRegistrySubkey(RegistryView.Registry32);
+                Console.WriteLine(key == null);
                 if (key != null) rkOvpns.Add(key);
 
                 if (rkOvpns.Count() == 0)
@@ -131,7 +147,7 @@ namespace OpenVpn
             }
             catch (Exception e)
             {
-                EventLog.WriteEntry("Exception occured during service start: " + e.Message);
+                EventLog.WriteEntry("Exception occured during OpenVPN service start: " + e.Message);
                 throw e;
             }
         }
