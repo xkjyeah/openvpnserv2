@@ -7,7 +7,7 @@ Quick usage:
   * `manual_startup` (string): semicolon separated list of config file names, e.g. `client1.ovpn;client2.ovpn`
   * `user_control` (string): semicolon separated list of config file names, e.g. `client1.ovpn;client2.ovpn`
 * Test the program:
-
+```
   C:\...\openvpnserv2>ServiceControllerExample\bin\Debug\openvpnctl.exe list
   Available configuration files:
   C:\Program Files\OpenVPN\config\client7.ovpn
@@ -33,6 +33,7 @@ Quick usage:
   INFO: No tasks are running which match the specified criteria.
   
   C:\...\openvpnserv2>
+```
 
 `openvpnctl`
 ------------
@@ -40,7 +41,7 @@ Quick usage:
 ### `openvpnctl list`
 Lists all available configurations
 
-### `openvpnctl start|stop &lt;config file name>
+### `openvpnctl start|stop &lt;config file name>`
 Starts/Stops the VPN specified by this config file. Only config files listed in `openvpnctl list` can be started
 (these are config files in the OpenVPN installation directory).
 If you are running this from a non-administrator command line, only configs listed under `user_control`
