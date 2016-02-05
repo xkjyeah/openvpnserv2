@@ -108,15 +108,6 @@ namespace OpenVpn
             // Bind the named pipe
             var binding = new System.ServiceModel.NetNamedPipeBinding();
             this.serviceHost = new System.ServiceModel.ServiceHost(this, new Uri(OpenVpnServiceInfo.EndpointAddress));
-
-            foreach (var x in serviceHost.Description.Behaviors)
-            {
-                if (x is System.ServiceModel.Description.ServiceMetadataBehavior)
-                {
-                    ((System.ServiceModel.Description.ServiceMetadataBehavior)x)
-                    .HttpGetEnabled = false;
-                }
-            }
         }
 
         protected override void OnStart(string[] args)
