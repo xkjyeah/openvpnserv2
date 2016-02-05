@@ -41,7 +41,7 @@ Quick usage:
 ### `openvpnctl list`
 Lists all available configurations
 
-### `openvpnctl start|stop &lt;config file name>`
+### `openvpnctl start|stop <config file name>`
 Starts/Stops the VPN specified by this config file. Only config files listed in `openvpnctl list` can be started
 (these are config files in the OpenVPN installation directory).
 If you are running this from a non-administrator command line, only configs listed under `user_control`
