@@ -12,6 +12,15 @@ Aim of this package is to fix:
 
 Pre-built binaries are included in `bin/`
 
+Interactive Service Branch
+-------------------------
+
+This is the interactive service branch of the main project. The intention of
+this branch is to allow users to control services without requiring Administrator
+rights.
+
+See [documentation](interactive.md) for more information.
+
 Building on Linux
 -----------------
 
