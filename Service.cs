@@ -139,7 +139,7 @@ namespace OpenVpn
                         foreach (string _filename in Directory.GetFiles(config.configDir))
                         {
                             try {
-                                if (!_filename.EndsWith(config.configExt))
+                                if (!_filename.EndsWith(config.configExt, StringComparison.InvariantCultureIgnoreCase))
                                 {
                                     continue;
                                 }
