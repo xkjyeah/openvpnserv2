@@ -231,7 +231,7 @@ namespace OpenVpn
                     {
                         try
                         {
-                            if (!_filename.EndsWith(config.configExt))
+                            if (!_filename.EndsWith(config.configExt, StringComparison.InvariantCultureIgnoreCase))
                             {
                                 continue;
                             }
