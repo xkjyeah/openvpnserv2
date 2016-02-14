@@ -97,6 +97,7 @@ namespace OpenVpn
                         {
                             continue;
                         }
+                        Console.WriteLine("Processing " + _filename);
 
                         var child = new OpenVpnChild(config, _filename);
                         Subprocesses.Add(child);
@@ -182,6 +183,7 @@ namespace OpenVpn
                 FileMode.OpenOrCreate | (config.logAppend ? FileMode.Append : FileMode.Truncate),
                 FileAccess.Write,
                 FileShare.Read), new UTF8Encoding(false));
+            Console.WriteLine("Opened Log File " + logFilename);
             
             /// SET UP PROCESS START INFO
             string[] procArgs = {
@@ -231,11 +233,13 @@ namespace OpenVpn
         }
         
         public void Wait() {
+            Console.WriteLine("Wait " + configFile);
             process.WaitForExit();
             logFile.Close();
         }
 
         public void Restart() {
+            Console.WriteLine("Restart " + configFile);
             if (restartTimer != null) {
                 restartTimer.Stop();
             }
@@ -268,6 +272,7 @@ namespace OpenVpn
         /// For use with unexpected terminations
         private void Watchdog(object sender, EventArgs e)
         {
+            Console.WriteLine("Watchdog " + configFile);
             EventLog.WriteEntry("Process for " + configFile + " exited. Restarting in 10 sec.");
 
             restartTimer = new System.Timers.Timer(10000);
@@ -294,6 +299,7 @@ namespace OpenVpn
         }
         
         public void Start() {
+            Console.WriteLine("Start " + configFile);
             process = new System.Diagnostics.Process();
 
             process.StartInfo = startInfo;

@@ -155,9 +155,9 @@ namespace OpenVpn
                             }
                         }
                     }
-                    catch (NullReferenceException) /* e.g. missing registry values */
+                    catch (NullReferenceException e) /* e.g. missing registry values */
                     {
-                        EventLog.WriteEntry("Registry values are incomplete for " + rkOvpn.View.ToString());
+                        EventLog.WriteEntry("Registry values are incomplete for " + rkOvpn.View.ToString() + e.StackTrace);
                     }
                 }
 
