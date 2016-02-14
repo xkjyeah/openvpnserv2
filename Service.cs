@@ -241,7 +241,7 @@ namespace OpenVpn
             //}
             
             logFile = new StreamWriter(File.Open(logFilename,
-                FileMode.OpenOrCreate | (config.logAppend ? FileMode.Append : FileMode.Truncate),
+                config.logAppend ? FileMode.Append : FileMode.Create,
                 FileAccess.Write,
                 FileShare.Read), new UTF8Encoding(false));
             

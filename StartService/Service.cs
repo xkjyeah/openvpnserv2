@@ -60,54 +60,60 @@ namespace OpenVpn
 
                 foreach (var rkOvpn in rkOvpns)
                 {
-                    bool append = false;
-                    {
-                        var logAppend = (string)rkOvpn.GetValue("log_append");
-                        if (logAppend[0] == '0' || logAppend[0] == '1')
-                            append = logAppend[0] == '1';
-                        else
-                            throw new Exception("Log file append flag must be 1 or 0");
-                    }
-
-                    var config = new OpenVpnServiceConfiguration()
-                    {
-                        exePath = (string)rkOvpn.GetValue("exe_path"),
-                        configDir = (string)rkOvpn.GetValue("config_dir"),
-                        configExt = "." + (string)rkOvpn.GetValue("config_ext"),
-                        logDir = (string)rkOvpn.GetValue("log_dir"),
-                        logAppend = append,
-                        priorityClass = GetPriorityClass((string)rkOvpn.GetValue("priority")),
-
-                        eventLog = new EventLog(),
-                    };
-
-                    /// Only attempt to start the service
-                    /// if openvpn.exe is present. This should help if there are old files
-                    /// and registry settings left behind from a previous OpenVPN 32-bit installation
-                    /// on a 64-bit system.
-                    if (!File.Exists(config.exePath))
-                    {
-                        EventLog.WriteEntry("OpenVPN binary does not exist at " + config.exePath);
-                        continue;
-                    }
-
-                    foreach (string _filename in Directory.GetFiles(config.configDir))
-                    {
-                        if (!_filename.EndsWith(config.configExt))
+                    try {
+                        bool append = false;
                         {
+                            var logAppend = (string)rkOvpn.GetValue("log_append");
+                            if (logAppend[0] == '0' || logAppend[0] == '1')
+                                append = logAppend[0] == '1';
+                            else
+                                throw new Exception("Log file append flag must be 1 or 0");
+                        }
+
+                        var config = new OpenVpnServiceConfiguration()
+                        {
+                            exePath = (string)rkOvpn.GetValue("exe_path"),
+                            configDir = (string)rkOvpn.GetValue("config_dir"),
+                            configExt = "." + (string)rkOvpn.GetValue("config_ext"),
+                            logDir = (string)rkOvpn.GetValue("log_dir"),
+                            logAppend = append,
+                            priorityClass = GetPriorityClass((string)rkOvpn.GetValue("priority")),
+
+                            eventLog = new EventLog(),
+                        };
+
+                        /// Only attempt to start the service
+                        /// if openvpn.exe is present. This should help if there are old files
+                        /// and registry settings left behind from a previous OpenVPN 32-bit installation
+                        /// on a 64-bit system.
+                        if (!File.Exists(config.exePath))
+                        {
+                            EventLog.WriteEntry("OpenVPN binary does not exist at " + config.exePath);
                             continue;
                         }
-                        Console.WriteLine("Processing " + _filename);
 
-                        var child = new OpenVpnChild(config, _filename);
-                        Subprocesses.Add(child);
-                        child.Start();
+                        foreach (string _filename in Directory.GetFiles(config.configDir))
+                        {
+                            if (!_filename.EndsWith(config.configExt, StringComparison.InvariantCultureIgnoreCase))
+                            {
+                                continue;
+                            }
+                            Console.WriteLine("Processing " + _filename);
+
+                            var child = new OpenVpnChild(config, _filename);
+                            Subprocesses.Add(child);
+                            child.Start();
+                        }
+                    }
+                    catch (NullReferenceException e) /* e.g. missing registry values */
+                    {
+                        EventLog.WriteEntry("Registry values are incomplete for " + rkOvpn.View.ToString() + e.StackTrace);
                     }
                 }
             }
             catch (Exception e)
             {
-                EventLog.WriteEntry("Exception occured during OpenVPN service start: " + e.Message);
+                EventLog.WriteEntry("Exception occured during OpenVPN service start: " + e.StackTrace);
                 throw;
             }
         }
@@ -180,7 +186,7 @@ namespace OpenVpn
             //}
             
             logFile = new StreamWriter(File.Open(logFilename,
-                FileMode.OpenOrCreate | (config.logAppend ? FileMode.Append : FileMode.Truncate),
+                config.logAppend ? FileMode.Append : FileMode.Create,
                 FileAccess.Write,
                 FileShare.Read), new UTF8Encoding(false));
             Console.WriteLine("Opened Log File " + logFilename);
