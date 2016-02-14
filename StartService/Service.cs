@@ -5,75 +5,35 @@ using System.Text;
 using Microsoft.Win32;
 using System.IO;
 using System.Diagnostics;
-using System.ServiceProcess;
 
 namespace OpenVpn
 {
-    class OpenVpnService : System.ServiceProcess.ServiceBase
+    class EventLog
+    {
+        public static void WriteEntry(string s)
+        {
+            Console.WriteLine(s);
+        }
+    }
+
+    class OpenVpnWatchdog
     {
         public const string Package = "openvpn";
         private List<OpenVpnChild> Subprocesses;
 
-        public OpenVpnService()
+        public OpenVpnWatchdog()
         {
-            this.ServiceName = "OpenVpnService";
-            this.CanStop = true;
-            this.CanPauseAndContinue = false;
-            // N.B. if OpenVPN always dies when suspending, then this is unnecessary
-            // However if there is some kind of stuck state where OpenVPN.exe hangs
-            // after resuming, then this will help
-            this.CanHandlePowerEvent = false; 
-            this.AutoLog = true;
-
             this.Subprocesses = new List<OpenVpnChild>();
         }
-        public static void Main()
-        {
-            System.ServiceProcess.ServiceBase.Run(new OpenVpnService());
-        }
 
-        protected override void OnStop()
+        public static void Main(string[] args)
         {
-            RequestAdditionalTime(3000);
-            foreach (var child in Subprocesses)
-            {
-                child.StopProcess();
-            }
-        }
-
-        protected override bool OnPowerEvent(PowerBroadcastStatus powerStatus)
-        {
-            if (powerStatus == PowerBroadcastStatus.Suspend)
-            {
-                //EventLog.WriteEntry("Computer going to sleep");
-                foreach (var child in Subprocesses)
-                {
-                    child.StopProcess();
-                }
-            }
-            else if (powerStatus.HasFlag(PowerBroadcastStatus.ResumeCritical))
-            {
-                //EventLog.WriteEntry("Resume from critical");
-                foreach (var child in Subprocesses)
-                {
-                    child.Restart();
-                }
-            }
-            else if (powerStatus.HasFlag(PowerBroadcastStatus.ResumeSuspend))
-            {
-                //EventLog.WriteEntry("Resume from suspend");
-                foreach (var child in Subprocesses)
-                {
-                    child.Start();
-                }
-            }
-            return true;
+            new OpenVpnWatchdog().OnStart(args);
         }
 
         private RegistryKey GetRegistrySubkey(RegistryView rView)
         {
-            try
-            {
+            try {
                 return RegistryKey.OpenBaseKey(RegistryHive.LocalMachine, rView)
                     .OpenSubKey("Software\\OpenVPN");
             }
@@ -81,15 +41,10 @@ namespace OpenVpn
             {
                 return null;
             }
-            catch (NullReferenceException)
-            {
-                return null;
-            }
         }
 
-        protected override void OnStart(string[] args)
+        public void OnStart(string[] args)
         {
-            EventLog.WriteEntry("Start (1)");
             try
             {
                 List<RegistryKey> rkOvpns = new List<RegistryKey>();
@@ -97,7 +52,7 @@ namespace OpenVpn
                 Console.WriteLine(key == null);
                 if (key != null) rkOvpns.Add(key);
                 key = GetRegistrySubkey(RegistryView.Registry32);
-                Console.WriteLine(key == null);
+                Console.WriteLine(key == null) ;
                 if (key != null) rkOvpns.Add(key);
 
                 if (rkOvpns.Count() == 0)
@@ -105,70 +60,55 @@ namespace OpenVpn
 
                 foreach (var rkOvpn in rkOvpns)
                 {
-                    try {
-                        bool append = false;
-                        {
-                            var logAppend = (string)rkOvpn.GetValue("log_append");
-                            if (logAppend[0] == '0' || logAppend[0] == '1')
-                                append = logAppend[0] == '1';
-                            else
-                                throw new Exception("Log file append flag must be 1 or 0");
-                        }
+                    bool append = false;
+                    {
+                        var logAppend = (string)rkOvpn.GetValue("log_append");
+                        if (logAppend[0] == '0' || logAppend[0] == '1')
+                            append = logAppend[0] == '1';
+                        else
+                            throw new Exception("Log file append flag must be 1 or 0");
+                    }
 
-                        var config = new OpenVpnServiceConfiguration()
-                        {
-                            exePath = (string)rkOvpn.GetValue("exe_path"),
-                            configDir = (string)rkOvpn.GetValue("config_dir"),
-                            configExt = "." + (string)rkOvpn.GetValue("config_ext"),
-                            logDir = (string)rkOvpn.GetValue("log_dir"),
-                            logAppend = append,
-                            priorityClass = GetPriorityClass((string)rkOvpn.GetValue("priority")),
-                            eventLog = EventLog,
-                        };
-                        EventLog.WriteEntry("Start (2) Config dir: " + config.configDir);
+                    var config = new OpenVpnServiceConfiguration()
+                    {
+                        exePath = (string)rkOvpn.GetValue("exe_path"),
+                        configDir = (string)rkOvpn.GetValue("config_dir"),
+                        configExt = "." + (string)rkOvpn.GetValue("config_ext"),
+                        logDir = (string)rkOvpn.GetValue("log_dir"),
+                        logAppend = append,
+                        priorityClass = GetPriorityClass((string)rkOvpn.GetValue("priority")),
 
+                        eventLog = new EventLog(),
+                    };
 
-                        /// Only attempt to start the service
-                        /// if openvpn.exe is present. This should help if there are old files
-                        /// and registry settings left behind from a previous OpenVPN 32-bit installation
-                        /// on a 64-bit system.
-                        if (!File.Exists(config.exePath))
+                    /// Only attempt to start the service
+                    /// if openvpn.exe is present. This should help if there are old files
+                    /// and registry settings left behind from a previous OpenVPN 32-bit installation
+                    /// on a 64-bit system.
+                    if (!File.Exists(config.exePath))
+                    {
+                        EventLog.WriteEntry("OpenVPN binary does not exist at " + config.exePath);
+                        continue;
+                    }
+
+                    foreach (string _filename in Directory.GetFiles(config.configDir))
+                    {
+                        if (!_filename.EndsWith(config.configExt))
                         {
-                            EventLog.WriteEntry("OpenVPN binary does not exist at " + config.exePath);
                             continue;
                         }
-                        EventLog.WriteEntry("Start (4) Processing config file: " + _filename);
+                        Console.WriteLine("Using configuration file " + _filename) ;
 
-                        foreach (string _filename in Directory.GetFiles(config.configDir))
-                        {
-                            try {
-                                if (!_filename.EndsWith(config.configExt))
-                                {
-                                    continue;
-                                }
-
-                                var child = new OpenVpnChild(config, _filename);
-                                Subprocesses.Add(child);
-                                child.Start();
-                            }
-                            catch (Exception e)
-                            {
-                                EventLog.WriteEntry("Caught exception " + e.Message + " when starting openvpn for "
-                                    + _filename);
-                            }
-                        }
-                    }
-                    catch (NullReferenceException) /* e.g. missing registry values */
-                    {
-                        EventLog.WriteEntry("Registry values are incomplete for " + rkOvpn.View.ToString());
+                        var child = new OpenVpnChild(config, _filename);
+                        Subprocesses.Add(child);
+                        child.Start();
                     }
                 }
-
             }
             catch (Exception e)
             {
-                EventLog.WriteEntry("Exception occured during OpenVPN service start: " + e.Message + e.StackTrace);
-                throw e;
+                EventLog.WriteEntry("Exception occured during OpenVPN service start: " + e.Message);
+                throw;
             }
         }
 
@@ -200,11 +140,7 @@ namespace OpenVpn
 
         private void InitializeComponent()
         {
-            // 
-            // OpenVpnService
-            // 
-            this.ServiceName = "OpenVpnService";
-
+            
         }
     }
     
@@ -247,6 +183,8 @@ namespace OpenVpn
                 FileMode.OpenOrCreate | (config.logAppend ? FileMode.Append : FileMode.Truncate),
                 FileAccess.Write,
                 FileShare.Read), new UTF8Encoding(false));
+
+            Console.WriteLine("Log file opened ") ;
             
             /// SET UP PROCESS START INFO
             string[] procArgs = {
@@ -278,6 +216,8 @@ namespace OpenVpn
                     logFile.Flush();
                 };
             flushTimer.Start();
+
+            Console.WriteLine("Flush timer started") ;
         }
         
         public void StopProcess() {
@@ -333,7 +273,7 @@ namespace OpenVpn
         /// For use with unexpected terminations
         private void Watchdog(object sender, EventArgs e)
         {
-            config.eventLog.WriteEntry("Process for " + configFile + " exited. Restarting in 10 sec.");
+            EventLog.WriteEntry("Process for " + configFile + " exited. Restarting in 10 sec.");
 
             restartTimer = new System.Timers.Timer(10000);
             restartTimer.AutoReset = false;
@@ -348,7 +288,7 @@ namespace OpenVpn
         /// For use with Restart() (e.g. after a resume)
         private void FastRestart(object sender, EventArgs e)
         {
-            config.eventLog.WriteEntry("Process for " + configFile + " restarting in 3 sec");
+            EventLog.WriteEntry("Process for " + configFile + " restarting in 3 sec");
             restartTimer = new System.Timers.Timer(3000);
             restartTimer.AutoReset = false;
             restartTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs ev) =>
@@ -359,6 +299,8 @@ namespace OpenVpn
         }
         
         public void Start() {
+            Console.WriteLine("Start() called ") ;
+            
             process = new System.Diagnostics.Process();
 
             process.StartInfo = startInfo;
@@ -372,6 +314,8 @@ namespace OpenVpn
             process.BeginErrorReadLine();
             process.BeginOutputReadLine();
             process.PriorityClass = config.priorityClass;        
+
+            Console.WriteLine("Process started ") ;
         }
     
     }
