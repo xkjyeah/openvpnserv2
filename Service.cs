@@ -137,15 +137,14 @@ namespace OpenVpn
                             EventLog.WriteEntry("OpenVPN binary does not exist at " + config.exePath);
                             continue;
                         }
-                        EventLog.WriteEntry("Start (4) Processing config file: " + _filename);
-
                         foreach (string _filename in Directory.GetFiles(config.configDir))
                         {
                             try {
-                                if (!_filename.EndsWith(config.configExt))
+                                if (!_filename.EndsWith(config.configExt, StringComparison.InvariantCultureIgnoreCase))
                                 {
                                     continue;
                                 }
+                                EventLog.WriteEntry("Start (3) Processing config file: " + _filename);
 
                                 var child = new OpenVpnChild(config, _filename);
                                 Subprocesses.Add(child);
@@ -158,9 +157,9 @@ namespace OpenVpn
                             }
                         }
                     }
-                    catch (NullReferenceException) /* e.g. missing registry values */
+                    catch (NullReferenceException e) /* e.g. missing registry values */
                     {
-                        EventLog.WriteEntry("Registry values are incomplete for " + rkOvpn.View.ToString());
+                        EventLog.WriteEntry("Registry values are incomplete for " + rkOvpn.View.ToString() + e.StackTrace);
                     }
                 }
 
@@ -244,7 +243,7 @@ namespace OpenVpn
             //}
             
             logFile = new StreamWriter(File.Open(logFilename,
-                FileMode.OpenOrCreate | (config.logAppend ? FileMode.Append : FileMode.Truncate),
+                config.logAppend ? FileMode.Append : FileMode.Create,
                 FileAccess.Write,
                 FileShare.Read), new UTF8Encoding(false));
             
