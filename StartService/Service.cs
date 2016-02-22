@@ -98,16 +98,13 @@ namespace OpenVpn
                             EventLog.WriteEntry("OpenVPN binary does not exist at " + config.exePath);
                             continue;
                         }
-                        foreach (string _filename in Directory.GetFiles(config.configDir))
+                        foreach (var configFilename in Directory.EnumerateFiles(config.configDir,
+                                                                                "*" + config.configExt,
+                                                                                System.IO.SearchOption.AllDirectories))
                         {
-                            Console.WriteLine("Filename ~? " + _filename + " " + config.configExt);
-                            if (!_filename.EndsWith(config.configExt, StringComparison.InvariantCultureIgnoreCase))
-                            {
-                                continue;
-                            }
-                            Console.WriteLine("Processing " + _filename);
+                            Console.WriteLine("Processing " + configFilename);
 
-                            var child = new OpenVpnChild(config, _filename);
+                            var child = new OpenVpnChild(config, configFilename);
                             Subprocesses.Add(child);
                             child.Start();
                         }

@@ -103,6 +103,8 @@ namespace OpenVpn
                 if (rkOvpns.Count() == 0)
                     throw new Exception("Registry key missing");
 
+                var configDirsConsidered = new HashSet<string>();
+
                 foreach (var rkOvpn in rkOvpns)
                 {
                     try {
@@ -128,6 +130,11 @@ namespace OpenVpn
                         EventLog.WriteEntry("Start (2) Config dir: " + config.configDir);
 
 
+                        if (configDirsConsidered.Contains(config.configDir)) {
+                            continue;
+                        }
+                        configDirsConsidered.Add(config.configDir);
+
                         /// Only attempt to start the service
                         /// if openvpn.exe is present. This should help if there are old files
                         /// and registry settings left behind from a previous OpenVPN 32-bit installation
@@ -137,23 +144,19 @@ namespace OpenVpn
                             EventLog.WriteEntry("OpenVPN binary does not exist at " + config.exePath);
                             continue;
                         }
-                        foreach (string _filename in Directory.GetFiles(config.configDir))
+                        foreach (var configFilename in Directory.EnumerateFiles(config.configDir,
+                                                                                "*" + config.configExt,
+                                                                                System.IO.SearchOption.AllDirectories))
                         {
                             try {
-                                if (!_filename.EndsWith(config.configExt, StringComparison.InvariantCultureIgnoreCase))
-                                {
-                                    continue;
-                                }
-                                EventLog.WriteEntry("Start (3) Processing config file: " + _filename);
-
-                                var child = new OpenVpnChild(config, _filename);
+                                var child = new OpenVpnChild(config, configFilename);
                                 Subprocesses.Add(child);
                                 child.Start();
                             }
                             catch (Exception e)
                             {
                                 EventLog.WriteEntry("Caught exception " + e.Message + " when starting openvpn for "
-                                    + _filename);
+                                    + configFilename);
                             }
                         }
                     }
