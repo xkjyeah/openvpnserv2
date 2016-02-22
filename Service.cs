@@ -106,7 +106,6 @@ namespace OpenVpn
         private void PrepareInteractiveService()
         {
             // Bind the named pipe
-            var binding = new System.ServiceModel.NetNamedPipeBinding();
             this.serviceHost = new System.ServiceModel.ServiceHost(this, new Uri(OpenVpnServiceInfo.EndpointAddress));
         }
 
@@ -227,21 +226,18 @@ namespace OpenVpn
                         continue;
                     }
 
-                    foreach (string _filename in Directory.GetFiles(config.configDir))
+                    foreach (var configFilename in Directory.EnumerateFiles(config.configDir,
+                                                                            "*" + config.configExt,
+                                                                            System.IO.SearchOption.AllDirectories))
                     {
                         try
                         {
-                            if (!_filename.EndsWith(config.configExt, StringComparison.InvariantCultureIgnoreCase))
-                            {
-                                continue;
-                            }
-
-                            configurations.Add(_filename, config);
+                            configurations.Add(configFilename, config);
                         }
                         catch (Exception e)
                         {
                             EventLog.WriteEntry("Caught exception " + e.Message + " when starting openvpn for "
-                                + _filename);
+                                + configFilename);
                         }
                     }
                 }
@@ -351,7 +347,7 @@ namespace OpenVpn
             //}
             
             logFile = new StreamWriter(File.Open(logFilename,
-                FileMode.OpenOrCreate | (config.logAppend ? FileMode.Append : FileMode.Truncate),
+                config.logAppend ? FileMode.Append : FileMode.Create,
                 FileAccess.Write,
                 FileShare.Read), new UTF8Encoding(false));
             
