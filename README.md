@@ -19,6 +19,7 @@ This package can be built under Linux.
 
 On Ubuntu 14.04, you need the following packages and their dependencies:
 
+- `mono-devel`
 - `mono-xbuild`
 - `libmono-microsoft-build-tasks-v4.0-4.0-cil`
 - `libmono-system-serviceprocess4.0-cil`
