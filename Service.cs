@@ -168,11 +168,6 @@ namespace OpenVpn
             }
         }
 
-        private void InitializeComponent()
-        {
-            this.ServiceName = "OpenVpnService";
-        }
-
         public static int Main(string[] args)
         {
             if (args.Length == 0)
