@@ -40,36 +40,7 @@ namespace OpenVpn
                 child.StopProcess();
             }
         }
-
-        protected override bool OnPowerEvent(PowerBroadcastStatus powerStatus)
-        {
-            if (powerStatus == PowerBroadcastStatus.Suspend)
-            {
-                //EventLog.WriteEntry("Computer going to sleep");
-                foreach (var child in Subprocesses)
-                {
-                    child.StopProcess();
-                }
-            }
-            else if (powerStatus.HasFlag(PowerBroadcastStatus.ResumeCritical))
-            {
-                //EventLog.WriteEntry("Resume from critical");
-                foreach (var child in Subprocesses)
-                {
-                    child.Restart();
-                }
-            }
-            else if (powerStatus.HasFlag(PowerBroadcastStatus.ResumeSuspend))
-            {
-                //EventLog.WriteEntry("Resume from suspend");
-                foreach (var child in Subprocesses)
-                {
-                    child.Start();
-                }
-            }
-            return true;
-        }
-
+        
         private RegistryKey GetRegistrySubkey(RegistryView rView)
         {
             try
