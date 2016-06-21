@@ -63,11 +63,11 @@ namespace OpenVpn
             try
             {
                 List<RegistryKey> rkOvpns = new List<RegistryKey>();
+
+                // Search 64-bit registry, then 32-bit registry for OpenVpn
                 var key = GetRegistrySubkey(RegistryView.Registry64);
-                Console.WriteLine(key == null);
                 if (key != null) rkOvpns.Add(key);
                 key = GetRegistrySubkey(RegistryView.Registry32);
-                Console.WriteLine(key == null);
                 if (key != null) rkOvpns.Add(key);
 
                 if (rkOvpns.Count() == 0)
