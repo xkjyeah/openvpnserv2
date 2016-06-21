@@ -11,12 +11,14 @@ namespace OpenVpn
 {
     class OpenVpnService : System.ServiceProcess.ServiceBase
     {
+        public static string DefaultServiceName = "OpenVpnService";
+
         public const string Package = "openvpn";
         private List<OpenVpnChild> Subprocesses;
 
         public OpenVpnService()
         {
-            this.ServiceName = "OpenVpnService";
+            this.ServiceName = DefaultServiceName;
             this.CanStop = true;
             this.CanPauseAndContinue = false;
             // N.B. if OpenVPN always dies when suspending, then this is unnecessary
@@ -26,10 +28,6 @@ namespace OpenVpn
             this.AutoLog = true;
 
             this.Subprocesses = new List<OpenVpnChild>();
-        }
-        public static void Main()
-        {
-            System.ServiceProcess.ServiceBase.Run(new OpenVpnService());
         }
 
         protected override void OnStop()
@@ -172,14 +170,53 @@ namespace OpenVpn
 
         private void InitializeComponent()
         {
-            // 
-            // OpenVpnService
-            // 
             this.ServiceName = "OpenVpnService";
-
         }
+
+        public static int Main(string[] args)
+        {
+            if (args.Length == 0)
+            {
+                Run(new OpenVpnService());
+            }
+            else if (args[0] == "-install")
+            {
+                try
+                {
+                    ProjectInstaller.Install();
+                    ProjectInstaller.Start();
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine(e.Message);
+                    Console.Error.WriteLine(e.StackTrace);
+                    return 1;
+                }
+            }
+            else if (args[0] == "-remove")
+            {
+                try
+                {
+                    ProjectInstaller.Stop();
+                    ProjectInstaller.Uninstall();
+                }
+                catch (Exception e)
+                {
+                    Console.Error.WriteLine(e.Message);
+                    Console.Error.WriteLine(e.StackTrace);
+                    return 1;
+                }
+            }
+            else
+            {
+                Console.Error.WriteLine("Unknown command: " + args[0]);
+                return 1;
+            }
+            return 0;
+        }
+
     }
-    
+
     class OpenVpnServiceConfiguration {
         public string exePath {get;set;}
         public string configExt {get;set;}
