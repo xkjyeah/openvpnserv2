@@ -43,7 +43,7 @@
             this.serviceInstaller.ServicesDependedOn = new string[] {
         "Dhcp",
         "tap0901"};
-            this.serviceInstaller.StartType = System.ServiceProcess.ServiceStartMode.Automatic;
+            this.serviceInstaller.StartType = System.ServiceProcess.ServiceStartMode.Manual;
             // 
             // ProjectInstaller
             // 
