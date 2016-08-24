@@ -179,7 +179,6 @@ namespace OpenVpn
                 try
                 {
                     ProjectInstaller.Install();
-                    ProjectInstaller.Start();
                 }
                 catch (Exception e)
                 {
