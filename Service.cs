@@ -272,6 +272,7 @@ namespace OpenVpn
                 config.logAppend ? FileMode.Append : FileMode.Create,
                 FileAccess.Write,
                 FileShare.Read), new UTF8Encoding(false));
+            logFile.AutoFlush = true;
             
             /// SET UP PROCESS START INFO
             string[] procArgs = {
@@ -294,17 +295,6 @@ namespace OpenVpn
                 UseShellExecute = false,
                 /* create_new_console is not exposed -- but we probably don't need it?*/
             };
-            
-            /// SET UP FLUSH TIMER
-            /** .NET has a very annoying habit of taking a very long time to flush
-                output streams **/
-            var flushTimer = new System.Timers.Timer(60000);
-            flushTimer.AutoReset = true;
-            flushTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs e) =>
-                {
-                    logFile.Flush();
-                };
-            flushTimer.Start();
         }
         
         // set exit event so that openvpn will terminate
