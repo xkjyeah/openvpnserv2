@@ -6,21 +6,10 @@ using Microsoft.Win32;
 using System.IO;
 using System.Diagnostics;
 using System.ServiceProcess;
-using System.Runtime.InteropServices;
+using System.Threading;
 
 namespace OpenVpn
 {
-    class SysWin32
-    {
-        [DllImport("kernel32.dll", CharSet = CharSet.Unicode, EntryPoint = "CreateEventW", SetLastError = true)]
-        public static extern IntPtr CreateEvent(IntPtr lpEventAttributes, bool bManualReset, bool bInitialState, string lpName);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern bool CloseHandle(IntPtr hObject);
-
-        [DllImport("kernel32.dll", SetLastError = true)]
-        public static extern bool SetEvent(IntPtr hEvent);
-    }
 
     class OpenVpnService : System.ServiceProcess.ServiceBase
     {
@@ -37,7 +26,7 @@ namespace OpenVpn
             // N.B. if OpenVPN always dies when suspending, then this is unnecessary
             // However if there is some kind of stuck state where OpenVPN.exe hangs
             // after resuming, then this will help
-            this.CanHandlePowerEvent = false; 
+            this.CanHandlePowerEvent = false;
             this.AutoLog = true;
 
             this.Subprocesses = new List<OpenVpnChild>();
@@ -238,10 +227,10 @@ namespace OpenVpn
         public string logDir {get;set;}
         public bool logAppend {get;set;}
         public System.Diagnostics.ProcessPriorityClass priorityClass {get;set;}
-        
+
         public EventLog eventLog {get;set;}
     }
-    
+
     class OpenVpnChild {
         StreamWriter logFile;
         Process process;
@@ -250,7 +239,7 @@ namespace OpenVpn
         OpenVpnServiceConfiguration config;
         string configFile;
         string exitEvent;
-    
+
         public OpenVpnChild(OpenVpnServiceConfiguration config, string configFile) {
             this.config = config;
             /// SET UP LOG FILES
@@ -261,19 +250,19 @@ namespace OpenVpn
             var justFilename = System.IO.Path.GetFileName(configFile);
             var logFilename = config.logDir + "\\" +
                     justFilename.Substring(0, justFilename.Length - config.configExt.Length) + ".log";
-            
+
             // FIXME: if (!init_security_attributes_allow_all (&sa))
             //{
             //    MSG (M_SYSERR, "InitializeSecurityDescriptor start_" PACKAGE " failed");
             //    goto finish;
             //}
-            
+
             logFile = new StreamWriter(File.Open(logFilename,
                 config.logAppend ? FileMode.Append : FileMode.Create,
                 FileAccess.Write,
                 FileShare.Read), new UTF8Encoding(false));
             logFile.AutoFlush = true;
-            
+
             /// SET UP PROCESS START INFO
             string[] procArgs = {
                 "--config",
@@ -296,7 +285,7 @@ namespace OpenVpn
                 /* create_new_console is not exposed -- but we probably don't need it?*/
             };
         }
-        
+
         // set exit event so that openvpn will terminate
         public void SignalProcess() {
             if (restartTimer != null) {
@@ -306,19 +295,23 @@ namespace OpenVpn
             {
                 if (!process.HasExited)
                 {
-                    var h = SysWin32.CreateEvent(IntPtr.Zero, true, false, exitEvent);
-                    if (h != IntPtr.Zero)
-                    {
-                        process.Exited -= Watchdog; // Don't restart the process after exit
-                        SysWin32.SetEvent(h);
-                        SysWin32.CloseHandle(h);
-                    }
-                    else
-                    {
-                        var e = Marshal.GetLastWin32Error();
-                        config.eventLog.WriteEntry ("Error creating exit event named '" + exitEvent
-                                                    + "' (error code = " + e + ")", EventLogEntryType.Error);
-                    }
+
+                   try {
+                      var waitHandle = new EventWaitHandle(false, EventResetMode.ManualReset, exitEvent);
+
+                      process.Exited -= Watchdog; // Don't restart the process after exit
+
+                      waitHandle.Set();
+                      waitHandle.Close();
+                   } catch (IOException e) {
+                      config.eventLog.WriteEntry("IOException creating exit event named '" + exitEvent + "' " + e.Message + e.StackTrace);
+                   } catch (UnauthorizedAccessException e) {
+                      config.eventLog.WriteEntry("UnauthorizedAccessException creating exit event named '" + exitEvent + "' " + e.Message + e.StackTrace);
+                   } catch (WaitHandleCannotBeOpenedException e) {
+                      config.eventLog.WriteEntry("WaitHandleCannotBeOpenedException creating exit event named '" + exitEvent + "' " + e.Message + e.StackTrace);
+                   } catch (ArgumentException e) {
+                      config.eventLog.WriteEntry("ArgumentException creating exit event named '" + exitEvent + "' " + e.Message + e.StackTrace);
+                   }
                 }
             }
             catch (InvalidOperationException) { }
@@ -339,7 +332,7 @@ namespace OpenVpn
             }
             catch (InvalidOperationException) { }
         }
-        
+
         public void Wait() {
             process.WaitForExit();
             logFile.Close();
@@ -402,7 +395,7 @@ namespace OpenVpn
                 };
             restartTimer.Start();
         }
-        
+
         public void Start() {
             process = new System.Diagnostics.Process();
 
@@ -416,8 +409,8 @@ namespace OpenVpn
             process.Start();
             process.BeginErrorReadLine();
             process.BeginOutputReadLine();
-            process.PriorityClass = config.priorityClass;        
+            process.PriorityClass = config.priorityClass;
         }
-    
+
     }
 }
