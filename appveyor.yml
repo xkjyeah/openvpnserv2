@@ -1,0 +1,6 @@
+version: 1.0.{build}
+build:
+  project: OpenVpnService.sln
+  verbosity: minimal
+artifacts:
+- path: bin
