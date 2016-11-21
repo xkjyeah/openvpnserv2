@@ -319,7 +319,7 @@ namespace OpenVpn
         private void WriteToLog(object sendingProcess, DataReceivedEventArgs e) {
             if (e != null) {
                 logFile.WriteLine(e.Data);
-                logFile.FlushAsync();
+                logFile.Flush();
             }
         }
 
