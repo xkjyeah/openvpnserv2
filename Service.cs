@@ -9,7 +9,7 @@ using System.ServiceProcess;
 
 namespace OpenVpn
 {
-    class OpenVpnService : System.ServiceProcess.ServiceBase
+    public class OpenVpnService : System.ServiceProcess.ServiceBase
     {
         public static string DefaultServiceName = "OpenVpnService";
 
@@ -211,7 +211,7 @@ namespace OpenVpn
 
     }
 
-    class OpenVpnServiceConfiguration {
+    public class OpenVpnServiceConfiguration {
         public string exePath {get;set;}
         public string configExt {get;set;}
         public string configDir {get;set;}
@@ -222,7 +222,7 @@ namespace OpenVpn
         public EventLog eventLog {get;set;}
     }
     
-    class OpenVpnChild {
+    public class OpenVpnChild {
         StreamWriter logFile;
         Process process;
         ProcessStartInfo startInfo;
@@ -270,17 +270,6 @@ namespace OpenVpn
                 UseShellExecute = false,
                 /* create_new_console is not exposed -- but we probably don't need it?*/
             };
-            
-            /// SET UP FLUSH TIMER
-            /** .NET has a very annoying habit of taking a very long time to flush
-                output streams **/
-            var flushTimer = new System.Timers.Timer(60000);
-            flushTimer.AutoReset = true;
-            flushTimer.Elapsed += (object source, System.Timers.ElapsedEventArgs e) =>
-                {
-                    logFile.Flush();
-                };
-            flushTimer.Start();
         }
         
         public void StopProcess() {
